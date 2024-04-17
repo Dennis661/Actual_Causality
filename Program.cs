@@ -42,9 +42,88 @@ namespace Actual_Causality
             vars = getVarDomains(vars, allVarNames, mainString);
 
             Printprerequisites(exoVarNames, endoVarNames, vars);
+            Dictionary<string, int> exoValues = askExoValues(exoVarNames);
+
+            Dictionary <string, int> values = calculateValues(exoValues, endoVarNames, vars, mainString);
+        }
+        static Dictionary<string, int> calculateValues(Dictionary<string, int> exoValues, List<string>endoNames, List<thisVar> vars, string mainstring)
+        {
+            Dictionary<string, int> known = exoValues;          // at first, only the exogenous variables are known
+            List<string> unknown = endoNames;                   // leaves us with the endogenous variables which are unknown.
+            Dictionary<string, int> tempKnown = new Dictionary<string, int>();      // this one starts off empty, as we use it to save temporary values.
+            int iter = 0;
+
+            while (unknown.Count > 0 && iter<101)           // we continue until there are no values unknown anymore, therefore we calculated all values
+            {
+                Console.WriteLine("This is iteration " + iter+".");
+                for(int i =0; i<unknown.Count; i++)         // for every variable in unknown
+                {
+                    int value = tryGetValue(unknown[i], known, vars, mainstring); // we try to calculate the value in this iter
+                    if (value != 0)
+                    {
+                        tempKnown.Add(unknown[i], value);
+                        unknown.Remove(unknown[i]);
+                    }
+                }
+                foreach(KeyValuePair<string, int> pair in tempKnown)
+                {
+                    known.Add(pair.Key, pair.Value);
+                }
+                tempKnown.Clear();
+                iter ++;
+            }
+            return known;
+        }
+       // ST:= 1 if UST = 1; ST:= 0 if UST=0;;BT:= 1 if UBT = 1; BT:= 0 if UBT = 0;; SH:= 1 if ST = 1; SH:= 0 if ST = 0;;BH:= 1 if BT = 1,SH = 0; BH:= 0 if BT = 0,SH = 0; or; BT = 0,SH = 1; or; BT = 1,SH = 1;;BS:= 1 if SH = 1,BH = 1; or; SH = 1,BH = 0; or; SH = 0,BH = 1;  BS:= 0 if SH = 0,BH = 0; ;
+
+        static int tryGetValue(string varName, Dictionary<string, int>known, List<thisVar>vars, string mainstring)
+        {
+            int value = 0;
+            List<string> domain = new List<string>();
+            for (int i = 0; i<vars.Count; i++)
+            {
+                if (vars[i].name == varName)
+                {
+                    for (int j = 0; j < vars[i].domain.Count; j++)
+                    {
+                        domain.Add(vars[i].domain[j]);
+                    }
+                }
+            }
+            string[] split = mainstring.Split(";;");
+            int varNameLength = varName.Length;
+            string sb = "";
+            for (int i = 0; i<split.Length-1; i++)
+            {
+                char[] letterByLetter = split[i].ToCharArray();
+                for(int j = 0; j<varNameLength; j++)
+                {
+                    sb+= letterByLetter[j];
+                }
+                if (sb == varName)
+                {
+                    Console.WriteLine("right chunk found");
+                    // this is the right chunk. Go check for info here.
+                }
+            }
+
+            return value;
+        }
+        static Dictionary <string, int> askExoValues(List<string> exoNames)
+        {
+            Dictionary<string, int> exo= new Dictionary<string, int>();
+            Console.WriteLine("Now we need to know the values of the exogenous variables.");
+            foreach (string x in exoNames)
+            {
+                Console.WriteLine("What is the value of " + x+"?");
+                int value = int.Parse(Console.ReadLine());
+                exo.Add(x, value);
+            }
+            return exo;
         }
         static void Printprerequisites(List<string> exoNames, List<string> endoNames, List<thisVar> vars)
         {
+            Console.WriteLine();
             Console.Write("U= {");
             printList(exoNames);
             Console.Write("}, ");
@@ -76,6 +155,8 @@ namespace Actual_Causality
                     Console.Write(vars[i].range[vars[i].range.Count - 1] + "}, ");
                 }
             }
+            Console.WriteLine();
+            Console.WriteLine();
         }
         static void printList(List<string> thisList)
         {
