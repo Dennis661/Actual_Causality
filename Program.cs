@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+using System.ComponentModel.Design;
 using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices.Marshalling;
@@ -10,11 +11,11 @@ namespace Actual_Causality
     internal class Program
     {
         /*  examples of inputstrings:
-                Z:=1 if X=1,Y=1;or; X=1,Y=0;or; X=0,Y=1; Z:=0 if X=0,Y=0; ;
+                Z:=1 if X=1,Y=1;or; X=1,Y=0;or; X=0,Y=1; Z:=0 if X=0,Y=0;;
                 Z:=11ifX=1,Y=1;or;X=1,Y=0;;OZD:=9999or;X=0,Y=1;Z:=0ifX=0,Y=0;;
                 ST:= 1 if UST = 1; ST:= 0 if UST=0;;BT:= 1 if UBT = 1; BT:= 0 if UBT = 0;; SH:= 1 if ST = 1; SH:= 0 if ST = 0;;BH:= 1 if BT = 1,SH = 0; BH:= 0 if BT = 0,SH = 0; or; BT = 0,SH = 1; or; BT = 1,SH = 1;;BS:= 1 if SH = 1,BH = 1; or; SH = 1,BH = 0; or; SH = 0,BH = 1;  BS:= 0 if SH = 0,BH = 0; ;
          */
-        struct thisVar
+        struct thisVar  
         {
             public string name;
             public List<int> range;
@@ -22,7 +23,7 @@ namespace Actual_Causality
         }
         static void Main(string[] args)
         {
-            Console.WriteLine("Welcome. This program verifies actual causality by using one of two methods. Please provide the program with an input string.");
+            Console.WriteLine("Welcome. This program is used for research on a good definition of Actual Causality. \nPlease provide the program with an input string.");
             string mainString = prepareInput();
             List<string> allVarNames = getAllVarNames(mainString);
             List<string> endoVarNames = getEndoVarNames(allVarNames, mainString);
@@ -40,8 +41,190 @@ namespace Actual_Causality
             vars = getVarRanges(vars, allVarNames, mainString);
             vars = getVarDomains(vars, allVarNames, mainString);
 
-            printList(allVarNames);
-            Printprerequisites(exoVarNames, endoVarNames, vars);
+            printPrerequisites(exoVarNames, endoVarNames, vars);
+            Dictionary<string, int> exoValues = askExoValues(exoVarNames);
+
+            Dictionary <string, int> values = calculateValues(exoValues, endoVarNames, vars, mainString);
+        }
+        static Dictionary<string, int> calculateValues(Dictionary<string, int> exoValues, List<string>endoNames, List<thisVar> vars, string mainstring)
+        {
+            Dictionary<string, int> known = exoValues;          // at first, only the exogenous variables are known
+            List<string> unknown = endoNames;                   // leaves us with the endogenous variables which are unknown.
+            Dictionary<string, int> tempKnown = new Dictionary<string, int>();      // this one starts off empty, as we use it to save temporary values.
+            int iter = 0;
+
+            while (unknown.Count > 0 && iter<6)           // we continue until there are no values unknown anymore, therefore we calculated all values
+            {
+                Console.WriteLine("This is iteration " + iter+".");
+                Console.WriteLine("This is in unknown:");
+                foreach (string s in unknown)
+                {
+                    Console.Write(s+", ");
+                }
+                Console.WriteLine();
+                for(int i =0; i<unknown.Count; i++)         // for every variable in unknown
+                {
+                    Console.WriteLine("----------- We now go look for " + unknown[i] + ". ------------------");
+                    int value = tryGetValue(unknown[i], known, vars, mainstring); // we try to calculate the value in this iter
+                    if (value != int.MinValue)                                    // if it is not the default value of the tryGetValue function, meaning it got a value
+                    {
+                        tempKnown.Add(unknown[i], value);
+                        Console.WriteLine("Added to tempknown!");
+                        unknown.Remove(unknown[i]);
+                        Console.WriteLine(unknown[i] + "  deleted from unknown.");
+                    }
+                }
+                foreach(KeyValuePair<string, int> pair in tempKnown)
+                {
+                    known.Add(pair.Key, pair.Value);
+                }
+                tempKnown.Clear();
+                iter ++;
+            }
+            return known;
+        }
+           // ST:=1ifUST=1;ST:=0ifUST=0   ;;BT:= 1 if UBT = 1; BT:= 0 if UBT = 0;; SH:= 1 if ST = 1; SH:= 0 if ST = 0;;BH:= 1 if BT = 1,SH = 0; BH:= 0 if BT = 0,SH = 0; or; BT = 0,SH = 1; or; BT = 1,SH = 1;;BS:= 1 if SH = 1,BH = 1; or; SH = 1,BH = 0; or; SH = 0,BH = 1;  BS:= 0 if SH = 0,BH = 0; ;
+
+        static int tryGetValue(string varName, Dictionary<string, int>known, List<thisVar>vars, string mainstring)
+        {
+            int value = int.MinValue;                               // default is the minimal int value, in case we cannot calculate any other value
+            string[] castToStrings = new string[known.Count];      // we need the actual strings like "UST=1" to go look for them in the mainstring.
+            int h = 0;
+            foreach (KeyValuePair<string, int> kvp in known)
+            {
+                castToStrings[h] = kvp.Key + "=" + kvp.Value;
+                //Console.WriteLine(castToStrings[h]);
+                h++;
+            }
+            
+            string target = varName + ":=";
+            string mainModified = mainstring.Replace(";;", ";");
+            string[] split = mainModified.Split(';');
+            int currentvalue = int.MinValue;
+            bool orFound = false;
+            for(int i = 0; i<split.Length-1; i++)
+            {
+                string currentString = split[i];                    // looks like    ST:=1ifUST=1
+                Console.WriteLine("The currentstring is: "+currentString);
+                if (currentString.Contains(target))                 // gets value
+                {
+                    char[] getValue = currentString.ToCharArray();
+                    string valueBuilder = "";
+                    int j = target.Length;
+                    while (char.IsDigit(getValue[j]) && getValue[j] != ' ')
+                    {
+                        valueBuilder += getValue[target.Length];
+                        j++;
+                    }
+                    currentvalue = int.Parse(valueBuilder);
+
+                    Console.WriteLine("The string " + currentString + " contains the target " + target + ", with as length: " + target.Length);
+                    Console.WriteLine("Currentvalue is: " + currentvalue);
+                }
+                else if (currentString == "or" && currentvalue != int.MinValue)
+                {
+                    orFound = true;
+                    Console.WriteLine("or found and value kept at " + currentvalue);
+                    // do nothing, this is the exception. Can be rewritten.
+                }
+
+                if(currentString.Contains(target) || orFound)       // do the actual searching here!
+                {
+                    int containAmount = 0;                          // method 1.
+                    for(int k = 0; k<castToStrings.Length; k++)
+                    {
+                        if (currentString.Contains(castToStrings[k]))
+                        {
+                            Console.WriteLine(currentString+" Contains " + castToStrings[k]);
+                            containAmount++;
+                        }
+                    }
+                    Console.WriteLine("containsAmount =" + containAmount + " and castToString.Length is " + castToStrings.Length);
+                    if (containAmount == castToStrings.Length)      // does contain all.
+                    {
+                        Console.WriteLine("Yes! it actually does contain all.");
+                    }
+                    else Console.WriteLine("No, it does not contain all.");
+                }
+
+
+
+                else if (currentvalue != int.MinValue)              // no need to reset if it already is set to that value
+                {
+                    currentvalue = int.MinValue;
+                    Console.WriteLine("Value reset to " + currentvalue);
+                }
+                orFound = false;
+            }
+            return value;
+        }
+        static Dictionary <string, int> askExoValues(List<string> exoNames)
+        {
+            Dictionary<string, int> exo= new Dictionary<string, int>();
+            Console.WriteLine("Now we need to know the values of the exogenous variables.");
+            for(int i=0; i < exoNames.Count; i++)
+            {
+                Console.WriteLine("What is the value of " + exoNames[i] +"?");
+                string xValue = Console.ReadLine();
+                int number = 0;
+                if (int.TryParse(xValue, out number))
+                {
+                    int value = int.Parse(xValue);
+                    exo.Add(exoNames[i], value);
+                }
+                else
+                {
+                    Console.WriteLine("Entered value was not an integer!");
+                    i--;
+                }
+            }
+            return exo;
+        }
+        static void printPrerequisites(List<string> exoNames, List<string> endoNames, List<thisVar> vars)
+        {
+            Console.WriteLine();
+            Console.Write("U= {");
+            printList(exoNames);
+            Console.Write("}, ");
+            for (int i = 0; i < vars.Count; i++)
+            {
+                if (exoNames.Contains(vars[i].name))
+                {
+                    Console.Write("R(" + vars[i].name + ")= {");
+                    for(int j = 0; j < vars[i].range.Count-1; j++)
+                    {
+                        Console.Write(vars[i].range[j]+", ");
+                    }
+                    Console.Write(vars[i].range[vars[i].range.Count - 1]+"}, ");
+                }
+            }
+            Console.WriteLine();
+            Console.Write("V= {");
+            printList(endoNames);
+            Console.Write("}, ");
+            for (int i = 0; i < vars.Count; i++)
+            {
+                if (endoNames.Contains(vars[i].name))
+                {
+                    Console.Write("R(" + vars[i].name + ")= {");
+                    for (int j = 0; j < vars[i].range.Count - 1; j++)
+                    {
+                        Console.Write(vars[i].range[j] + ", ");
+                    }
+                    Console.Write(vars[i].range[vars[i].range.Count - 1] + "}, ");
+                }
+            }
+            Console.WriteLine();
+            Console.WriteLine();
+        }
+        static void printList(List<string> thisList)
+        {
+            if (thisList.Count == 0) Console.WriteLine("Tried to print an empty list.");
+            for (int i = 0; i < thisList.Count - 1; i++)
+            {
+                Console.Write(thisList[i] + ", ");
+            }
+            Console.Write(thisList[thisList.Count - 1]);
         }
         static List<thisVar> getVarRanges(List<thisVar>vars, List<string>varNames, string mainString)
         {
@@ -60,8 +243,8 @@ namespace Actual_Causality
                         if (lastVarName== varNames[i] && !varsWithRange[i].range.Contains(int.Parse(intBuilder)))
                         {
                             varsWithRange[i].range.Add(int.Parse(intBuilder));
-                            Console.Write(varsWithRange[i].name + " range is " + intBuilder);
-                            Console.WriteLine();
+                            //Console.Write(varsWithRange[i].name + " range is " + intBuilder);
+                            //Console.WriteLine();
                         }
                     }
                 }
@@ -72,7 +255,7 @@ namespace Actual_Causality
                 }
                 else if (wasBuildingName)
                 {
-                    lastVarName = stringBuilder;
+                    lastVarName = stringBuilder;    
                     stringBuilder = "";
                     wasBuildingName = false;
                 }
@@ -88,51 +271,94 @@ namespace Actual_Causality
         static List<thisVar> getVarDomains(List<thisVar>vars, List<string> varNames, string mainString)       //careful, this also gets vars that should keep an empty domain!
         {
             List<thisVar>varsWithDomain = vars;
-            string[] chunk = mainString.Split(";;");
-            string sb = "";
-            for(int i = 0; i<chunk.Length-1;i++)            //every chunk starts with an endovar and the other vars are its domain
-            {
-                char[] charred = chunk[i].ToCharArray();
-                int index = 0;
-                while (char.IsDigit(charred[index]) && char.IsUpper(charred[index]))        //get mainvar
-                {
-                    sb += charred[index];
-                    index++;
-                }
-                for(int k = 0; k<varsWithDomain.Count;k++)  //get domain should get done
-                {
-                    if (varsWithDomain[k].name == sb)
-                    {
+            char[] chars = mainString.ToCharArray(); 
+            string sb = "";                                 // stringbuilder
+            string lastName = "";
+            string mainName = "";
+            bool buildingArrow = false;                     // used to check if := is being made
+            bool arrowComplete = false;
+            bool buildingName = false;
+            bool buildingDouble = false;
 
-                    }
-                }
-                for(int j = index; j < charred.Length; j++)
+            /*
+            ST:= 1 if UST = 1; ST:= 0 if UST = 0; ; BT:= 1 if UBT = 1; BT:= 0 if UBT = 0; ;
+            */
+
+            for (int i = 0; i < chars.Length; i++)            // running through all of the chars of the mainstring to get all the vars and their domains.
+            {
+                char c = chars[i];
+                //Console.WriteLine("char is " + c);
+                if (arrowComplete)
                 {
-                    if (char.IsLetter(charred[i]) && char.IsUpper(charred[i])) sb += charred[i];
-                    else if (!char.IsDigit(charred[i]) && !char.IsUpper(charred[i])) ;
+                    if (lastName == "") Console.WriteLine("lastname was empty but shouldn't");
+                    mainName = lastName;
+                    //Console.WriteLine("mainName is " + mainName);
+                    arrowComplete = false;
+                    //Console.WriteLine("arrowcomplete set to false in AC");
                 }
-                
+                if (char.IsLetter(c) && char.IsUpper(c))
+                {
+                    sb += c;
+                    //Console.WriteLine("sb is "+sb);
+                    buildingName = true;
+                }
+                else
+                {
+                    if (buildingName)  // were saving a name
+                    {
+                        lastName = sb;
+                        //Console.WriteLine("lastname is " + lastName);
+                        if (mainName != "")     // if a mainname has been initialized and we're saving a name
+                        {
+                            //add currentvar to domain of var corresponding to mainvar
+                            for (int j = 0; j < varsWithDomain.Count; j++)
+                            {
+                                if (mainName == varsWithDomain[j].name && !varsWithDomain[j].domain.Contains(lastName)&&mainName!=lastName)     // find the var with this name
+                                {
+                                    varsWithDomain[j].domain.Add(lastName);     // add the name to the domain of this var
+                                    //Console.WriteLine(lastName + " is added to the domain");
+                                }
+                            }
+                        }
+                    }
+                    sb = "";
+                    buildingName = false;
+                    
+                    if (c == '=' && buildingArrow)
+                    {
+                        arrowComplete = true;
+                        //Console.WriteLine("arrowcomplete is set to true");
+                    }
+                    else
+                    {
+                        arrowComplete = false;
+                        //Console.WriteLine("arrowcomplete set to false in else");
+                    }
+                    if (c == ':')
+                    {
+                        buildingArrow = true;
+                        //Console.WriteLine("BA is set true");
+                    }
+                    else if (c != ':' || c != '=')
+                    {
+                        buildingArrow = false;
+                        //Console.WriteLine("BA set to false by else");
+                    }
+                    if (c == ';' && buildingDouble)
+                    {
+                        mainName = "";
+                    }
+                    if (c == ';')
+                    {
+                        buildingDouble = true;
+                    }
+                    else buildingDouble = false;
+                }
             }
 
             return varsWithDomain;
         }
-        static void Printprerequisites(List<string>exoNames, List<string>endoNames, List<thisVar>vars)
-        {
-            Console.Write("U= ");
-            printList(exoNames);
-            Console.Write("V= ");
-            printList(endoNames);
-        }
-        static void printList(List<string>thisList)
-        {
-            if (thisList.Count == 0) Console.WriteLine("Tried to print an empty list. What a noob!");
-            for(int i=0; i<thisList.Count-1; i++)
-            {
-                Console.Write(thisList[i]+", ");
-            }
-            Console.Write(thisList[thisList.Count - 1]+".");
-            Console.Write("\n");
-        }
+       
         static List<string> getAllVarNames (string mainString)
         {
             string[] chunks = mainString.Split(";;");      // chunk = endogenous variable assignment string = everything until next ;;
@@ -147,7 +373,8 @@ namespace Actual_Causality
         static string prepareInput()
         {
             string inputString = Console.ReadLine();
-            string nosbInputString = inputString.Replace(" ", "");
+            string nocommentInputstring = inputString.Replace("//", "");
+            string nosbInputString = nocommentInputstring.Replace(" ", "");
             string strippedInputString = nosbInputString.Trim();
             return strippedInputString;
         }
@@ -181,7 +408,7 @@ namespace Actual_Causality
         static List<string> getEndoVarNames(List<string>allNames, string mainString)
         {
             List<string> endoVarNames = new List<string>();
-            Console.WriteLine("mainstring "+ mainString);
+            //Console.WriteLine("mainstring "+ mainString);
             char[] charred = mainString.ToCharArray();
             string stringBuilder = "";
             bool semicolonOccured = false;            // checks if := occurs so we know there was an endovar before
@@ -201,7 +428,6 @@ namespace Actual_Causality
                 else if (!semicolonOccured) stringBuilder = "";
                 semicolonOccured = false;
             }
-
             return endoVarNames;
         }
         static List<string> getExoVarNames(List<string>allNames, List<string> endoNames, string mainString)
@@ -214,7 +440,6 @@ namespace Actual_Causality
                     exoVarNames.Add(name);
                 }
             }
-
             return exoVarNames;
         }
     }
