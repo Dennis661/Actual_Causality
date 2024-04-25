@@ -83,79 +83,68 @@ namespace Actual_Causality
             }
             return known;
         }
-           // ST:=1ifUST=1;ST:=0ifUST=0   ;;BT:= 1 if UBT = 1; BT:= 0 if UBT = 0;; SH:= 1 if ST = 1; SH:= 0 if ST = 0;;BH:= 1 if BT = 1,SH = 0; BH:= 0 if BT = 0,SH = 0; or; BT = 0,SH = 1; or; BT = 1,SH = 1;;BS:= 1 if SH = 1,BH = 1; or; SH = 1,BH = 0; or; SH = 0,BH = 1;  BS:= 0 if SH = 0,BH = 0; ;
+           // ST:=1ifUST=1;ST:=0ifUST=0   ;;BT:= 1 if UBT = 1; BT:= 0 if UBT = 0;; SH:= 1 if ST = 1; SH:= 0 if ST = 0;;BH:= 1 if BT = 1,SH = 0; BH:= 0 if BT = 0,SH = 0; or; BT = 0,SH = 1; or; BT = 1,SH = 1;;    BS:= 1 if SH = 1,BH = 1; or; SH = 1,BH = 0; or; SH = 0,BH = 1;  BS:= 0 if SH = 0,BH = 0; ;
 
         static int tryGetValue(string varName, Dictionary<string, int>known, List<thisVar>vars, string mainstring)
         {
             int value = int.MinValue;                               // default is the minimal int value, in case we cannot calculate any other value
-            string[] castToStrings = new string[known.Count];      // we need the actual strings like "UST=1" to go look for them in the mainstring.
-            int h = 0;
-            foreach (KeyValuePair<string, int> kvp in known)
+            List<string>lookingFor = new List<string>();
+
+            foreach (thisVar v in vars)         // search through all vars
             {
-                castToStrings[h] = kvp.Key + "=" + kvp.Value;
-                //Console.WriteLine(castToStrings[h]);
-                h++;
+                if (v.name== varName)           // get the one with the same name as our varname
+                {
+                    foreach(string d in v.domain)   // check for all vars in the domain
+                    {
+                        foreach(KeyValuePair<string, int> kvp in known) // check for the intersection with the variables in the Known list
+                        {
+                            if (d==kvp.Key)               // if the names are the same, it means the variable is both known and in the domain
+                            {
+                                Console.WriteLine("Intersection between domain and known found, namely: " + d);
+                                lookingFor.Add(kvp.Key + "=" + kvp.Value);
+                                Console.WriteLine(kvp.Key + "=" + kvp.Value + " added to lookingFor!");
+                            }
+                        }
+                    }
+                }
             }
-            
             string target = varName + ":=";
             string mainModified = mainstring.Replace(";;", ";");
             string[] split = mainModified.Split(';');
-            int currentvalue = int.MinValue;
-            bool orFound = false;
-            for(int i = 0; i<split.Length-1; i++)
+            int targetValue = int.MinValue;
+            for (int i = 0; i < split.Length - 1; i++)
             {
-                string currentString = split[i];                    // looks like    ST:=1ifUST=1
-                Console.WriteLine("The currentstring is: "+currentString);
-                if (currentString.Contains(target))                 // gets value
+                string chunk = split[i];
+                if (chunk != "or")
                 {
-                    char[] getValue = currentString.ToCharArray();
-                    string valueBuilder = "";
-                    int j = target.Length;
-                    while (char.IsDigit(getValue[j]) && getValue[j] != ' ')
-                    {
-                        valueBuilder += getValue[target.Length];
-                        j++;
-                    }
-                    currentvalue = int.Parse(valueBuilder);
-
-                    Console.WriteLine("The string " + currentString + " contains the target " + target + ", with as length: " + target.Length);
-                    Console.WriteLine("Currentvalue is: " + currentvalue);
+                    targetValue = int.MinValue;
                 }
-                else if (currentString == "or" && currentvalue != int.MinValue)
+                //else if (targetValue != int.MinValue) { Console.WriteLine("reinitialization of targetvalue avoided. Target value is now: " + targetValue); }
+                if (chunk.Contains(target))
                 {
-                    orFound = true;
-                    Console.WriteLine("or found and value kept at " + currentvalue);
-                    // do nothing, this is the exception. Can be rewritten.
+                    targetValue = getValue(chunk, target);
+                    //Console.WriteLine("Target value is now: " + targetValue);
                 }
-
-                if(currentString.Contains(target) || orFound)       // do the actual searching here!
-                {
-                    int containAmount = 0;                          // method 1.
-                    for(int k = 0; k<castToStrings.Length; k++)
-                    {
-                        if (currentString.Contains(castToStrings[k]))
-                        {
-                            Console.WriteLine(currentString+" Contains " + castToStrings[k]);
-                            containAmount++;
-                        }
-                    }
-                    Console.WriteLine("containsAmount =" + containAmount + " and castToString.Length is " + castToStrings.Length);
-                    if (containAmount == castToStrings.Length)      // does contain all.
-                    {
-                        Console.WriteLine("Yes! it actually does contain all.");
-                    }
-                    else Console.WriteLine("No, it does not contain all.");
-                }
-
-
-
-                else if (currentvalue != int.MinValue)              // no need to reset if it already is set to that value
-                {
-                    currentvalue = int.MinValue;
-                    Console.WriteLine("Value reset to " + currentvalue);
-                }
-                orFound = false;
             }
+
+
+
+
+            return value;
+        }
+        static int getValue(string chunk, string target)
+        {
+            int value = int.MinValue;
+            char[] charredChunk = chunk.ToCharArray();
+            string valueBuilder = "";
+            int j = target.Length;
+            while (char.IsDigit(charredChunk[j]) && charredChunk[j] != ' ')
+            {
+                valueBuilder += charredChunk[target.Length];
+                j++;
+            }
+            value = int.Parse(valueBuilder);
+
             return value;
         }
         static Dictionary <string, int> askExoValues(List<string> exoNames)
