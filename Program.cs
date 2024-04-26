@@ -88,7 +88,7 @@ namespace Actual_Causality
         static int tryGetValue(string varName, Dictionary<string, int>known, List<thisVar>vars, string mainstring)
         {
             int value = int.MinValue;                               // default is the minimal int value, in case we cannot calculate any other value
-            List<string>lookingFor = new List<string>();
+            List<string>tempKnown = new List<string>();
 
             foreach (thisVar v in vars)         // search through all vars
             {
@@ -101,7 +101,7 @@ namespace Actual_Causality
                             if (d==kvp.Key)               // if the names are the same, it means the variable is both known and in the domain
                             {
                                 Console.WriteLine("Intersection between domain and known found, namely: " + d);
-                                lookingFor.Add(kvp.Key + "=" + kvp.Value);
+                                tempKnown.Add(kvp.Key + "=" + kvp.Value);
                                 Console.WriteLine(kvp.Key + "=" + kvp.Value + " added to lookingFor!");
                             }
                         }
@@ -112,24 +112,26 @@ namespace Actual_Causality
             string mainModified = mainstring.Replace(";;", ";");
             string[] split = mainModified.Split(';');
             int targetValue = int.MinValue;
+            HashSet<int>values = new HashSet<int>();
             for (int i = 0; i < split.Length - 1; i++)
             {
                 string chunk = split[i];
-                if (chunk != "or")
+                if (chunk != "or")                  // way to get past the 'or' statements
                 {
                     targetValue = int.MinValue;
                 }
                 //else if (targetValue != int.MinValue) { Console.WriteLine("reinitialization of targetvalue avoided. Target value is now: " + targetValue); }
-                if (chunk.Contains(target))
+                if (chunk.Contains(target))         // get target value
                 {
                     targetValue = getValue(chunk, target);
                     //Console.WriteLine("Target value is now: " + targetValue);
                 }
+                //if (tempKnown.All(chunk.Contains())&& targetValue != int.MinValue)      // check for containment and that the targetvalue is not reset to the default
+                {
+                    values.Add(targetValue);
+                }
+                if (values.Count==1) value = values.First();
             }
-
-
-
-
             return value;
         }
         static int getValue(string chunk, string target)
