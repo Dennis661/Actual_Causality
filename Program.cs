@@ -51,33 +51,40 @@ namespace Actual_Causality
             Dictionary<string, int> known = exoValues;          // at first, only the exogenous variables are known
             List<string> unknown = endoNames;                   // leaves us with the endogenous variables which are unknown.
             Dictionary<string, int> tempKnown = new Dictionary<string, int>();      // this one starts off empty, as we use it to save temporary values.
+            Dictionary<string, int> foundAtIter = new Dictionary<string, int>();
             int iter = 0;
 
-            while (unknown.Count > 0 && iter<6)           // we continue until there are no values unknown anymore, therefore we calculated all values
+            while (unknown.Count > 0 && iter<10)           // we continue until there are no values unknown anymore, therefore we calculated all values
             {
-                Console.WriteLine("This is iteration " + iter+".");
+                Console.WriteLine();
+                Console.WriteLine("----------This is iteration " + iter+".-------");
                 Console.WriteLine("This is in unknown:");
                 foreach (string s in unknown)
                 {
-                    Console.Write(s+", ");
+                    Console.WriteLine(s+", ");
                 }
                 Console.WriteLine();
-                for(int i =0; i<unknown.Count; i++)         // for every variable in unknown
+                for(int i=0; i<unknown.Count; i++)         // for every variable in unknown
                 {
-                    Console.WriteLine("----------- We now go look for " + unknown[i] + ". ------------------");
-                    int value = tryGetValue(unknown[i], known, vars, mainstring); // we try to calculate the value in this iter
+                    string targetVariable = unknown[i];
+                    Console.WriteLine("~~~~~We now go look for " + targetVariable + ".~~~~~");
+                    int value = tryGetValue(unknown[i], known, vars, mainstring, iter); // we try to calculate the value in this iter
                     if (value != int.MinValue)                                    // if it is not the default value of the tryGetValue function, meaning it got a value
                     {
-                        tempKnown.Add(unknown[i], value);
-                        Console.WriteLine("Added to tempknown!");
-                        unknown.Remove(unknown[i]);
-                        Console.WriteLine(unknown[i] + "  deleted from unknown.");
+                        tempKnown.Add(targetVariable, value);
+                        Console.WriteLine(targetVariable + " added to tempknown with value: " + value);
+                        Console.WriteLine(targetVariable + " deleted from unknown.");
+                        unknown.Remove(targetVariable);
+                        i--;
                     }
                 }
                 foreach(KeyValuePair<string, int> pair in tempKnown)
                 {
                     known.Add(pair.Key, pair.Value);
+                    Console.WriteLine("Added to known: " + pair.Key +", " + pair.Value);
+                    foundAtIter.Add(pair.Key, iter);
                 }
+                Console.WriteLine("tempKnown cleared.");
                 tempKnown.Clear();
                 iter ++;
             }
@@ -85,11 +92,10 @@ namespace Actual_Causality
         }
            // ST:=1ifUST=1;ST:=0ifUST=0   ;;BT:= 1 if UBT = 1; BT:= 0 if UBT = 0;; SH:= 1 if ST = 1; SH:= 0 if ST = 0;;BH:= 1 if BT = 1,SH = 0; BH:= 0 if BT = 0,SH = 0; or; BT = 0,SH = 1; or; BT = 1,SH = 1;;    BS:= 1 if SH = 1,BH = 1; or; SH = 1,BH = 0; or; SH = 0,BH = 1;  BS:= 0 if SH = 0,BH = 0; ;
 
-        static int tryGetValue(string varName, Dictionary<string, int>known, List<thisVar>vars, string mainstring)
+        static int tryGetValue(string varName, Dictionary<string, int>known, List<thisVar>vars, string mainstring, int iter)
         {
             int value = int.MinValue;                               // default is the minimal int value, in case we cannot calculate any other value
-            List<string>tempKnown = new List<string>();
-
+            List<string>newKnown = new List<string>();              // intersection of domain of var and actual tempknown
             foreach (thisVar v in vars)         // search through all vars
             {
                 if (v.name== varName)           // get the one with the same name as our varname
@@ -101,7 +107,7 @@ namespace Actual_Causality
                             if (d==kvp.Key)               // if the names are the same, it means the variable is both known and in the domain
                             {
                                 Console.WriteLine("Intersection between domain and known found, namely: " + d);
-                                tempKnown.Add(kvp.Key + "=" + kvp.Value);
+                                newKnown.Add(kvp.Key + "=" + kvp.Value);
                                 Console.WriteLine(kvp.Key + "=" + kvp.Value + " added to lookingFor!");
                             }
                         }
@@ -116,21 +122,34 @@ namespace Actual_Causality
             for (int i = 0; i < split.Length - 1; i++)
             {
                 string chunk = split[i];
-                if (chunk != "or")                  // way to get past the 'or' statements
+                if (chunk == "or")                  // way to get past the 'or' statements
                 {
-                    targetValue = int.MinValue;
+                    continue;
                 }
                 //else if (targetValue != int.MinValue) { Console.WriteLine("reinitialization of targetvalue avoided. Target value is now: " + targetValue); }
                 if (chunk.Contains(target))         // get target value
                 {
                     targetValue = getValue(chunk, target);
-                    //Console.WriteLine("Target value is now: " + targetValue);
+                    Console.WriteLine("Target value is now: " + targetValue);
                 }
-                //if (tempKnown.All(chunk.Contains())&& targetValue != int.MinValue)      // check for containment and that the targetvalue is not reset to the default
+                /*
+                Console.WriteLine("Chunk inspection: " + chunk+".");
+                foreach(string s in newKnown)
+                {
+                    Console.WriteLine(s);
+                }
+                */
+                if (newKnown.All(chunk.Contains) && targetValue != int.MinValue)      // check for containment and that the targetvalue is not reset to the default
                 {
                     values.Add(targetValue);
+                    //Console.WriteLine(targetValue + " added to hashset!");
                 }
-                if (values.Count==1) value = values.First();
+            }
+            if (values.Count == 1)
+            {
+                value = values.First();
+                Console.WriteLine("Value is " + value);
+                ;
             }
             return value;
         }
