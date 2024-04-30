@@ -11,11 +11,21 @@ namespace Actual_Causality
     internal class Program
     {
         /*  examples of inputstrings:
-                Z:=1 if X=1,Y=1;or; X=1,Y=0;or; X=0,Y=1; Z:=0 if X=0,Y=0; ;
+                
+                1. Yes-Gate
+                2. Example with bigger domains
+                3. Or-Gate
+                4. Example of multiple digit variables
+                5. Susy-Billy rock throwing example
+
+                B:= 1 if A=1; B:=0 if A=0;;
+                B:= 1 if A=1; B:=0 if A=0; or; A=2; A=3;A=28;;
+                Z:=1 if X=1,Y=1;or; X=1,Y=0;or; X=0,Y=1; Z:=0 if X=0,Y=0;;
                 Z:=11ifX=1,Y=1;or;X=1,Y=0;;OZD:=9999or;X=0,Y=1;Z:=0ifX=0,Y=0;;
                 ST:= 1 if UST = 1; ST:= 0 if UST=0;;BT:= 1 if UBT = 1; BT:= 0 if UBT = 0;; SH:= 1 if ST = 1; SH:= 0 if ST = 0;;BH:= 1 if BT = 1,SH = 0; BH:= 0 if BT = 0,SH = 0; or; BT = 0,SH = 1; or; BT = 1,SH = 1;;BS:= 1 if SH = 1,BH = 1; or; SH = 1,BH = 0; or; SH = 0,BH = 1;  BS:= 0 if SH = 0,BH = 0; ;
+         
          */
-        struct thisVar
+        struct thisVar  
         {
             public string name;
             public List<int> range;
@@ -23,14 +33,14 @@ namespace Actual_Causality
         }
         static void Main(string[] args)
         {
-            Console.WriteLine("Welcome. This program verifies actual causality by using one of two methods. Please provide the program with an input string.");
+            Console.WriteLine("Welcome. This program is used for research on a good definition of Actual Causality. \nPlease provide the program with an input string.");
             string mainString = prepareInput();
             List<string> allVarNames = getAllVarNames(mainString);
             List<string> endoVarNames = getEndoVarNames(allVarNames, mainString);
             List<string> exoVarNames = getExoVarNames(allVarNames, endoVarNames, mainString);
 
             List<thisVar> vars = new List<thisVar>();
-            foreach (string v in allVarNames)
+            foreach (string v in allVarNames)               // creating the variables and adding their names
             {
                 thisVar currentVar = new thisVar();
                 currentVar.name = v;
@@ -38,74 +48,273 @@ namespace Actual_Causality
                 currentVar.domain = new List<string>();
                 vars.Add(currentVar);
             }
-            vars = getVarRanges(vars, allVarNames, mainString);
-            vars = getVarDomains(vars, allVarNames, mainString);
+            vars = getVarRanges(vars, allVarNames, mainString);     // adding ranges to the variables
+            vars = getVarDomains(vars, allVarNames, mainString);    // adding domains to the variables
 
-            Printprerequisites(exoVarNames, endoVarNames, vars);
+            printPrerequisites(exoVarNames, endoVarNames, vars);
             Dictionary<string, int> exoValues = askExoValues(exoVarNames);
 
-            Dictionary <string, int> values = calculateValues(exoValues, endoVarNames, vars, mainString);
-        }
-        static Dictionary<string, int> calculateValues(Dictionary<string, int> exoValues, List<string>endoNames, List<thisVar> vars, string mainstring)
-        {
-            Dictionary<string, int> known = exoValues;          // at first, only the exogenous variables are known
-            List<string> unknown = endoNames;                   // leaves us with the endogenous variables which are unknown.
-            Dictionary<string, int> tempKnown = new Dictionary<string, int>();      // this one starts off empty, as we use it to save temporary values.
-            int iter = 0;
+            KeyValuePair<string, int> defaultIntervention = new KeyValuePair<string, int>();        // empty intervention is passed to calculate the original values
+            Dictionary <string, int> originalValues = calculateValues(exoValues, endoVarNames, vars, mainString, defaultIntervention);
 
-            while (unknown.Count > 0 && iter<101)           // we continue until there are no values unknown anymore, therefore we calculated all values
+            Console.WriteLine("\nNow which variable would you like to investigate as a possible cause?");
+            string possibleCause = Console.ReadLine();
+            Console.WriteLine("With which value for " + possibleCause+"?");
+            int pbValue = int.Parse(Console.ReadLine());
+            Console.WriteLine("On the effect on which other variable?");
+            string allegedDependant = Console.ReadLine();
+            Console.WriteLine("What corresponding value does " + allegedDependant+" have?");
+            int adValue = int.Parse(Console.ReadLine());
+            Console.WriteLine("And for which definition would you like to have your answer? Write 1 for cNess, 2 for DC and 3 for HPm.");
+            int chosenMethod = int.Parse(Console.ReadLine());
+            Console.WriteLine();
+
+            // now we add an intervention, to check if this still holds.
+            KeyValuePair <string, int> pc = new KeyValuePair<string, int>(possibleCause, pbValue);
+            KeyValuePair<string, int> ad = new KeyValuePair<string, int>(allegedDependant, adValue);
+            Dictionary<string, int> investigation = new Dictionary<string, int>();
+            investigation.Add(pc.Key, pbValue);
+            investigation.Add(ad.Key, adValue);
+
+            bool causal = false;
+            Console.WriteLine("Chosen method is: " + chosenMethod);
+            switch (chosenMethod)
             {
-                Console.WriteLine("This is iteration " + iter+".");
-                for(int i =0; i<unknown.Count; i++)         // for every variable in unknown
+                case 1:
+                    causal = isCauseUndercNess(originalValues, investigation, vars, exoValues, endoVarNames, mainString);
+                    break;
+                case 2:
+                    causal = isCauseUnderDC(originalValues, investigation, vars, exoValues, endoVarNames, mainString);
+                    break;
+                case 3:
+                    causal = isCauseUnderHPm(originalValues, investigation, vars, exoValues, endoVarNames, mainString);
+                    break;
+                default:
+                    causal = false;
+                    Console.WriteLine("Causal Default reached. Next time please do give a managable number.");
+                    break;
+            }
+            if (causal)
+            {
+                Console.WriteLine(pc + " is a cause of " + ad + " under this context in this model!");
+                Console.WriteLine("Because had " + pc.Key + " not been "+pc.Value + ", then " + ad.Key + " would not have been " + ad.Value);
+            }
+            else
+            {
+                Console.WriteLine(pc + " is not a cause of " + ad + " under this context in this model!");
+                Console.WriteLine("Because had " + pc.Key + " not been " + pc.Value + ", then " + ad.Key + " would still have been " + ad.Value);
+            }
+        }
+
+        static bool isCauseUndercNess(Dictionary<string, int> ogValues, Dictionary<string, int> investigation, List <thisVar> vars, Dictionary<string, int>exoValues, List<string>endoVarNames, string mainstring)
+        {
+            if (originalCheck(ogValues, investigation))     // first, we check if the values given were true in the original model
+            {                                               // we now go look if any assignment of the possible cause variable might have changed the value of the alleged dependant
+                Console.WriteLine("Reached this om my days!");
+                List<int> possibleCauseRange = getRange(investigation.ElementAt(0).Key, vars);
+                possibleCauseRange.Distinct();
+                possibleCauseRange.Remove(investigation.ElementAt(0).Value);
+                foreach (int pValue in possibleCauseRange)
                 {
-                    int value = tryGetValue(unknown[i], known, vars, mainstring); // we try to calculate the value in this iter
-                    if (value != 0)
+                    KeyValuePair<string, int> intervention = new KeyValuePair<string, int>(investigation.ElementAt(0).Key, pValue);
+                    Dictionary<string, int> intervenedValues = calculateValues(exoValues, endoVarNames, vars, mainstring, intervention);
+                    Console.WriteLine(investigation.ElementAt(1).Value +" aaaa " +intervenedValues[investigation.ElementAt(1).Key]);
+                    if (investigation.ElementAt(1).Value != intervenedValues[investigation.ElementAt(1).Key])   // alleged dependant: compare original value with new value
                     {
-                        tempKnown.Add(unknown[i], value);
-                        unknown.Remove(unknown[i]);
+                        return true;                // if those are not the same, it means it changed. And since the only thing we changed was our possible cause, it is an actual cause.
                     }
                 }
-                foreach(KeyValuePair<string, int> pair in tempKnown)
+            }
+            else
+            {
+                Console.WriteLine("Entered values were not the case in the original model!");
+                Console.WriteLine("Therefore the we cannot say anything about causality. \n");
+            }
+            return false;
+        }
+        static bool isCauseUnderDC(Dictionary<string, int> ogValues, Dictionary<string, int> investigation, List<thisVar> vars, Dictionary<string, int> exoValues, List<string> endoVarNames, string mainstring)
+        {
+            bool timeStepChanged = false;
+            return (isCauseUndercNess(ogValues, investigation, vars, exoValues, endoVarNames, mainstring) && !timeStepChanged);    // DC still checks if the value changed, but also if the iteration at which the value was found has changed
+        }
+        static bool isCauseUnderHPm(Dictionary<string, int> ogValues, Dictionary<string, int> investigation, List<thisVar> vars, Dictionary<string, int> exoValues, List<string> endoVarNames, string mainstring)
+        {
+            bool isCause = false;
+
+
+
+            return isCause;
+        }
+        static bool originalCheck(Dictionary<string, int>ogValues, Dictionary<string, int>investigation)
+        {
+            foreach (KeyValuePair<string, int> kvp in ogValues)
+            {
+                if (kvp.Key == investigation.ElementAt(0).Key)   // matches the key of possibleCause
                 {
-                    known.Add(pair.Key, pair.Value);
+                    if (kvp.Value != investigation.ElementAt(0).Value)       // the values are not the same
+                    {
+                        return false;
+                    }
                 }
+                if (kvp.Key == investigation.ElementAt(1).Key)   // matches the key of allegedDependant
+                {
+                    if (kvp.Value != investigation.ElementAt(1).Value)       // the values are not the same
+                    {
+                        return false;
+                    }
+                }
+            }
+            return true;        // if you don't see any problems, it might be because it is not wrong
+        }
+        static List<int> getRange(string pCause, List<thisVar>vars)
+        {
+            List<int> result = new List<int>();
+            foreach (thisVar tV in vars)
+            {
+                if (tV.name == pCause)
+                {
+                    result = tV.range;
+                    break;
+                }
+            }
+
+            return result;
+        }
+        
+        static Dictionary<string, int> calculateValues(Dictionary<string, int> known, List<string>unknown, List<thisVar> vars, string mainstring, KeyValuePair<string, int> intervention)
+        {
+            Dictionary<string, int> tempKnown = new Dictionary<string, int>();      // this one starts off empty, as we use it to save temporary values.
+            Dictionary<string, int> foundAtIter = new Dictionary<string, int>();
+            int iter = 0;
+            if (intervention.Key != null) { Console.WriteLine("Reached this with an intervention!"); }
+            if (unknown.Count == 0) { Console.WriteLine("Empty unknown"); }
+            while (unknown.Count > 0 && iter<10)           // we continue until there are no values unknown anymore, therefore we calculated all values
+            {
+                Console.WriteLine();
+                Console.WriteLine("----------This is iteration " + iter+".-------");
+                Console.WriteLine("This is in unknown:");
+                foreach (string s in unknown)
+                {
+                    Console.WriteLine(s+", ");
+                }
+                Console.WriteLine();
+                for(int i=0; i<unknown.Count; i++)         // for every variable in unknown
+                {
+                    string targetVariable = unknown[i];
+                    int value = tryGetValue(unknown[i], known, vars, mainstring);       // we try to calculate the value in this iter
+                    if (value != int.MinValue)                                          // if it is not the default value of the tryGetValue function, meaning it got a value
+                    {
+                        tempKnown.Add(targetVariable, value);
+                        unknown.Remove(targetVariable);
+                        i--;    // This is crucial since the delete() operator already moves every item one up the list
+                    }
+                }
+                foreach(KeyValuePair<string, int> pair in tempKnown)    // intervene here!!
+                {
+                    Console.WriteLine("Reached this---------------");
+                    if(pair.Key==intervention.Key)
+                    {
+                        Console.WriteLine("in if 1");
+                        Console.WriteLine("intervention key found. Time to intervene!");
+                        known.Add(pair.Key, intervention.Value);
+                    }
+                    else
+                    {
+                        Console.WriteLine("in else 1");
+                        known.Add(pair.Key, pair.Value);
+                    }
+                    Console.WriteLine("Added to known: " + pair.Key +", " + pair.Value);
+                    foundAtIter.Add(pair.Key, iter);
+                }
+                //Console.WriteLine("tempKnown cleared.");
                 tempKnown.Clear();
                 iter ++;
             }
+
+            Console.WriteLine();
+            if (intervention.Key == null)
+            {
+                Console.WriteLine("The following variables are found at these iterations: ");
+                foreach (KeyValuePair<string, int> kvp in foundAtIter)
+                {
+                    Console.WriteLine(kvp.Key + ", " + kvp.Value);
+                }
+            }
+
             return known;
         }
-       // ST:= 1 if UST = 1; ST:= 0 if UST=0;;BT:= 1 if UBT = 1; BT:= 0 if UBT = 0;; SH:= 1 if ST = 1; SH:= 0 if ST = 0;;BH:= 1 if BT = 1,SH = 0; BH:= 0 if BT = 0,SH = 0; or; BT = 0,SH = 1; or; BT = 1,SH = 1;;BS:= 1 if SH = 1,BH = 1; or; SH = 1,BH = 0; or; SH = 0,BH = 1;  BS:= 0 if SH = 0,BH = 0; ;
+           // ST:=1ifUST=1;ST:=0ifUST=0   ;;BT:= 1 if UBT = 1; BT:= 0 if UBT = 0;; SH:= 1 if ST = 1; SH:= 0 if ST = 0;;BH:= 1 if BT = 1,SH = 0; BH:= 0 if BT = 0,SH = 0; or; BT = 0,SH = 1; or; BT = 1,SH = 1;;    BS:= 1 if SH = 1,BH = 1; or; SH = 1,BH = 0; or; SH = 0,BH = 1;  BS:= 0 if SH = 0,BH = 0; ;
 
         static int tryGetValue(string varName, Dictionary<string, int>known, List<thisVar>vars, string mainstring)
         {
-            int value = 0;
-            List<string> domain = new List<string>();
-            for (int i = 0; i<vars.Count; i++)
+            int value = int.MinValue;                               // default is the minimal int value, in case we cannot calculate any other value
+            List<string>newKnown = new List<string>();              // intersection of domain of var and actual tempknown
+            foreach (thisVar v in vars)         // search through all vars
             {
-                if (vars[i].name == varName)
+                if (v.name== varName)           // get the one with the same name as our varname
                 {
-                    for (int j = 0; j < vars[i].domain.Count; j++)
+                    foreach(string d in v.domain)   // check for all vars in the domain
                     {
-                        domain.Add(vars[i].domain[j]);
+                        foreach(KeyValuePair<string, int> kvp in known) // check for the intersection with the variables in the Known list
+                        {
+                            if (d==kvp.Key)               // if the names are the same, it means the variable is both known and in the domain
+                            {
+                                Console.WriteLine("Intersection between domain of "+v.name+" and known list found, namely: " + d);
+                                newKnown.Add(kvp.Key + "=" + kvp.Value);
+                            }
+                        }
                     }
                 }
             }
-            string[] split = mainstring.Split(";;");
-            int varNameLength = varName.Length;
-            string sb = "";
-            for (int i = 0; i<split.Length-1; i++)
+            //B:= 1 if A = 1; B:= 0 if A = 0; 
+
+            string target = varName + ":=";
+            string mainModified = mainstring.Replace(";;", ";");
+            string[] split = mainModified.Split(';');
+            int targetValue = int.MinValue;
+            HashSet<int>values = new HashSet<int>();
+            for (int i = 0; i < split.Length - 1; i++)
             {
-                char[] letterByLetter = split[i].ToCharArray();
-                for(int j = 0; j<varNameLength; j++)
+                string chunk = split[i];
+                Console.WriteLine("Chunk is: " + chunk);
+                if (chunk == "or")                  // way to get past the 'or' statements
                 {
-                    sb+= letterByLetter[j];
+                    continue;
                 }
-                if (sb == varName)
+                if (chunk.Contains(target))         // get target value
                 {
-                    Console.WriteLine("right chunk found");
-                    // this is the right chunk. Go check for info here.
+                    targetValue = getValue(chunk, target);
+                    Console.WriteLine("Targetvalue currently is: " + targetValue);
+                }
+                if (newKnown.All(chunk.Contains) && targetValue != int.MinValue)      // check for containment and that the targetvalue is not reset to the default
+                {
+                    values.Add(targetValue);                // add the most recent encountered target value
+                    Console.WriteLine("Targetvalue added! --> " + targetValue);
                 }
             }
+            if (values.Count == 1)
+            {
+                value = values.First();
+                Console.WriteLine("The value of "+varName+" is " + value);
+            }
+            return value;
+        }
+        //                 Z:=1 if X=1,Y=1;or; X=1,Y=0;or; X=0,Y=1; Z:=0 if X=0,Y=0;;
+
+        static int getValue(string chunk, string target)
+        {
+            Console.WriteLine("Chunk is: "+ chunk);
+            int value = int.MinValue;
+            char[] charredChunk = chunk.ToCharArray();
+            string valueBuilder = "";
+            int j = target.Length;
+            while (char.IsDigit(charredChunk[j]) && charredChunk[j] != ' ')
+            {
+                valueBuilder += charredChunk[target.Length];
+                j++;
+            }
+            if (valueBuilder.Length ==0) { Console.WriteLine("oh no, empty!"); }
+            value = int.Parse(valueBuilder);
 
             return value;
         }
@@ -113,15 +322,27 @@ namespace Actual_Causality
         {
             Dictionary<string, int> exo= new Dictionary<string, int>();
             Console.WriteLine("Now we need to know the values of the exogenous variables.");
-            foreach (string x in exoNames)
+            for(int i=0; i < exoNames.Count; i++)
             {
-                Console.WriteLine("What is the value of " + x+"?");
-                int value = int.Parse(Console.ReadLine());
-                exo.Add(x, value);
+                Console.WriteLine("What is the value of " + exoNames[i] +"?");
+                string xValue = Console.ReadLine();
+                int number = 0;
+                if (int.TryParse(xValue, out number))
+                {
+                    int value = int.Parse(xValue);
+                    exo.Add(exoNames[i], value);
+                }
+                else
+                {
+                    Console.WriteLine("Entered value was not an integer!");
+                    i--;                // give user another try.
+                }
             }
+            Console.WriteLine();
+            Console.WriteLine("Thank you for entering the values of the exogenous variables. Calculating the original values now.");
             return exo;
         }
-        static void Printprerequisites(List<string> exoNames, List<string> endoNames, List<thisVar> vars)
+        static void printPrerequisites(List<string> exoNames, List<string> endoNames, List<thisVar> vars)
         {
             Console.WriteLine();
             Console.Write("U= {");
@@ -160,7 +381,7 @@ namespace Actual_Causality
         }
         static void printList(List<string> thisList)
         {
-            if (thisList.Count == 0) Console.WriteLine("Tried to print an empty list. What a noob!");
+            if (thisList.Count == 0) Console.WriteLine("Tried to print an empty list.");
             for (int i = 0; i < thisList.Count - 1; i++)
             {
                 Console.Write(thisList[i] + ", ");
@@ -264,7 +485,7 @@ namespace Actual_Causality
                     }
                     sb = "";
                     buildingName = false;
-                    
+
                     if (c == '=' && buildingArrow)
                     {
                         arrowComplete = true;
@@ -296,7 +517,6 @@ namespace Actual_Causality
                     else buildingDouble = false;
                 }
             }
-
             return varsWithDomain;
         }
        
@@ -314,11 +534,12 @@ namespace Actual_Causality
         static string prepareInput()
         {
             string inputString = Console.ReadLine();
-            string nosbInputString = inputString.Replace(" ", "");
+            string nocommentInputstring = inputString.Replace("//", "");
+            string nosbInputString = nocommentInputstring.Replace(" ", "");
             string strippedInputString = nosbInputString.Trim();
             return strippedInputString;
         }
-        static List<string> getChunkVarNames(string chunk)          // gets all the variables from a chunk
+        static List<string> getChunkVarNames(string chunk)          // gets all the variable names from a chunk
         {
             List<string>chunkVarNames = new List<string>();
             int workingOn = 0;                      // keeps track of what kind of information is being processed
@@ -368,7 +589,6 @@ namespace Actual_Causality
                 else if (!semicolonOccured) stringBuilder = "";
                 semicolonOccured = false;
             }
-
             return endoVarNames;
         }
         static List<string> getExoVarNames(List<string>allNames, List<string> endoNames, string mainString)
@@ -381,7 +601,6 @@ namespace Actual_Causality
                     exoVarNames.Add(name);
                 }
             }
-
             return exoVarNames;
         }
     }
