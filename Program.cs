@@ -1,12 +1,4 @@
-    using System.Collections.Generic;
-    using System.ComponentModel.Design;
-    using System.Linq;
-    using System.Net;
-    using System.Runtime.InteropServices.Marshalling;
-    using System.Text;
-    using System.Text.RegularExpressions;
-
-    namespace Actual_Causality
+namespace Actual_Causality
     {
         internal class Program
         {
@@ -24,6 +16,9 @@
                     Z:=11ifX=1,Y=1;or;X=1,Y=0;;OZD:=9999or;X=0,Y=1;Z:=0ifX=0,Y=0;;
                     ST:= 1 if UST = 1; ST:= 0 if UST=0;;BT:= 1 if UBT = 1; BT:= 0 if UBT = 0;; SH:= 1 if ST = 1; SH:= 0 if ST = 0;;BH:= 1 if BT = 1,SH = 0; BH:= 0 if BT = 0,SH = 0; or; BT = 0,SH = 1; or; BT = 1,SH = 1;;BS:= 1 if SH = 1,BH = 1; or; SH = 1,BH = 0; or; SH = 0,BH = 1;  BS:= 0 if SH = 0,BH = 0; ;
          
+         
+                    // prisoner input string
+                    D:=1ifA=1,B=1,C=1;or;A=1,B=1,C=0;or;A=0,B=0,C=1;or;A=0,B=1,C=1;or;A=1,B=0,C=1;;
              */
             struct thisVar  
             {
@@ -31,6 +26,13 @@
                 public List<int> range;
                 public List<string> domain;
             }
+
+            struct CalculatedValues
+            {
+                public Dictionary<string, int> known;
+                public Dictionary<string, int> foundAtIter;
+            }
+            
             static void Main(string[] args)
             {
                 Console.WriteLine("Welcome. This program is used for research on a good definition of Actual Causality. \nPlease provide the program with an input string.");
@@ -62,7 +64,10 @@
                 List<thisVar> copyVars = new List<thisVar>(vars);
                 string copyMS = modelString;
                 
-                Dictionary <string, int> originalValues = calculateValues(copyEXV, copyENN, copyVars, copyMS, defaultIntervention);
+                //Dictionary <string, int> originalValues = calculateValues(copyEXV, copyENN, copyVars, copyMS, defaultIntervention);
+                var originalValuesAsStruct = calculateValuesAsStruct(copyEXV, copyENN, copyVars, copyMS, defaultIntervention);
+
+                var originalValues = originalValuesAsStruct.known;
 
                 Console.WriteLine("\nNow which variable would you like to investigate as a possible cause?");
                 string possibleCause = Console.ReadLine();
@@ -83,24 +88,28 @@
                 investigation.Add(pc.Key, pbValue);
                 investigation.Add(ad.Key, adValue);
 
-                bool causal = false;
                 Console.WriteLine("Chosen method is: " + chosenMethod);
-                switch (chosenMethod)
-                {
-                    case 1:
-                        causal = isCauseUndercNess(originalValues, investigation, vars, exoValues, endoVarNames, modelString);
-                        break;
-                    case 2:
-                        causal = isCauseUnderDC(originalValues, investigation, vars, exoValues, endoVarNames, modelString);
-                        break;
-                    case 3:
-                        causal = isCauseUnderHPm(originalValues, investigation, vars, exoValues, endoVarNames, modelString);
-                        break;
-                    default:
-                        causal = false;
-                        Console.WriteLine("Causal Default reached. Next time please do give a managable number.");
-                        break;
-                }
+
+                // bool causal = false;
+                var causal = isCause(originalValuesAsStruct, investigation, vars, exoValues, endoVarNames, modelString,
+                    chosenMethod);
+                
+                // switch (chosenMethod)
+                // {
+                //     case 1:
+                //         causal = isCauseUndercNess(originalValues, investigation, vars, exoValues, endoVarNames, modelString);
+                //         break;
+                //     case 2:
+                //         causal = isCause(originalValuesAsStruct, investigation, vars, exoValues, endoVarNames, modelString);
+                //         break;
+                //     case 3:
+                //         causal = isCauseUnderHPm(originalValues, investigation, vars, exoValues, endoVarNames, modelString);
+                //         break;
+                //     default:
+                //         causal = false;
+                //         Console.WriteLine("Causal Default reached. Next time please do give a managable number.");
+                //         break;
+                // }
                 if (causal)
                 {
                     Console.WriteLine(pc + " is a cause of " + ad + " under this context in this model!");
@@ -113,9 +122,12 @@
                 }
             }
 
-            static bool isCauseUndercNess(Dictionary<string, int> ogValues, Dictionary<string, int> investigation, List <thisVar> vars, Dictionary<string, int>exoValues, List<string>endoVarNames, string modelString)
+            static bool isCause(CalculatedValues ogValues, Dictionary<string, int> investigation, List <thisVar> vars, Dictionary<string, int>exoValues, List<string>endoVarNames, string modelString, int chosenMethod = 1)
             {
-                if (originalCheck(ogValues, investigation))     // first, we check if the values given were true in the original model
+                var key = investigation.ElementAt(1).Key;
+                ogValues.foundAtIter.TryGetValue(key, out int ogPhiAtOriginalIter);
+                
+                if (originalCheck(ogValues.known, investigation))     // first, we check if the values given were true in the original model
                 {                                               // we now go look if any assignment of the possible cause variable might have changed the value of the alleged dependant
                     Console.WriteLine("Reached this 1.0 !");
                     foreach(thisVar v in vars)
@@ -128,7 +140,20 @@
                     foreach (int pValue in possibleCauseRange)
                     {
                         KeyValuePair<string, int> intervention = new KeyValuePair<string, int>(investigation.ElementAt(0).Key, pValue);
-                        Dictionary<string, int> intervenedValues = calculateValues(exoValues, endoVarNames, vars, modelString, intervention);
+                        
+                        var intervenedValuesAsStruct = calculateValuesAsStruct(exoValues, endoVarNames, vars, modelString, intervention);
+                        var intervenedValues = intervenedValuesAsStruct.known;
+                        var intervenedFoundAtIter = intervenedValuesAsStruct.foundAtIter;
+
+                        if (chosenMethod == 2)
+                        {
+                            var hasValue = intervenedFoundAtIter.TryGetValue(key, out int iterOfEffectAfterIntervention);
+                            if (hasValue)
+                            {
+                                if (ogPhiAtOriginalIter != iterOfEffectAfterIntervention) return true;
+                            }
+                        }
+
                         Console.WriteLine(investigation.ElementAt(1).Value +" vs " +intervenedValues[investigation.ElementAt(1).Key]);
                         if (investigation.ElementAt(1).Value != intervenedValues[investigation.ElementAt(1).Key])   // alleged dependant: compare original value with new value
                         {
@@ -143,19 +168,77 @@
                 }
                 return false;
             }
-            static bool isCauseUnderDC(Dictionary<string, int> ogValues, Dictionary<string, int> investigation, List<thisVar> vars, Dictionary<string, int> exoValues, List<string> endoVarNames, string modelString)
-            {
-                bool timeStepChanged = false;
-                return (isCauseUndercNess(ogValues, investigation, vars, exoValues, endoVarNames, modelString) && !timeStepChanged);    // DC still checks if the value changed, but also if the iteration at which the value was found has changed
-            }
-            static bool isCauseUnderHPm(Dictionary<string, int> ogValues, Dictionary<string, int> investigation, List<thisVar> vars, Dictionary<string, int> exoValues, List<string> endoVarNames, string modelString)
-            {
-                bool isCause = false;
-
-
-
-                return isCause;
-            }
+            
+            // static bool isCauseUndercNess(Dictionary<string, int> ogValues, Dictionary<string, int> investigation, List <thisVar> vars, Dictionary<string, int>exoValues, List<string>endoVarNames, string modelString)
+            // {
+            //     if (originalCheck(ogValues, investigation))     // first, we check if the values given were true in the original model
+            //     {                                               // we now go look if any assignment of the possible cause variable might have changed the value of the alleged dependant
+            //         Console.WriteLine("Reached this 1.0 !");
+            //         foreach(thisVar v in vars)
+            //     {
+            //         Console.WriteLine(v.name);
+            //     }
+            //         List<int> possibleCauseRange = getRange(investigation.ElementAt(0).Key, vars);
+            //         possibleCauseRange.Distinct();
+            //         possibleCauseRange.Remove(investigation.ElementAt(0).Value);
+            //         foreach (int pValue in possibleCauseRange)
+            //         {
+            //             KeyValuePair<string, int> intervention = new KeyValuePair<string, int>(investigation.ElementAt(0).Key, pValue);
+            //
+            //             var ogPhi_VariableName = investigation.ElementAt(1).Key;
+            //             
+            //             
+            //             // Dictionary<string, int> intervenedValues = calculateValues(exoValues, endoVarNames, vars, modelString, intervention);
+            //             var intervenedValuesAsStruct = calculateValuesAsStruct(exoValues, endoVarNames, vars, modelString, intervention);
+            //             var intervenedValues = intervenedValuesAsStruct.known;
+            //             var intervenedFoundAtIter = intervenedValuesAsStruct.foundAtIter;
+            //             
+            //             Console.WriteLine(investigation.ElementAt(1).Value +" vs " +intervenedValues[investigation.ElementAt(1).Key]);
+            //             if (investigation.ElementAt(1).Value != intervenedValues[investigation.ElementAt(1).Key])   // alleged dependant: compare original value with new value
+            //             {
+            //                 return true;                // if those are not the same, it means it changed. And since the only thing we changed was our possible cause, it is an actual cause.
+            //             }
+            //         }
+            //     }
+            //     else
+            //     {
+            //         Console.WriteLine("Entered values were not the case in the original model!");
+            //         Console.WriteLine("Therefore the we cannot say anything about causality. \n");
+            //     }
+            //     return false;
+            // }
+            // static bool isCauseUnderDC(Dictionary<string, int> ogValues, Dictionary<string, int> investigation, List<thisVar> vars, Dictionary<string, int> exoValues, List<string> endoVarNames, string modelString)
+            // {
+            //     bool timeStepChanged = false;
+            //     return (isCauseUndercNess(ogValues, investigation, vars, exoValues, endoVarNames, modelString) && !timeStepChanged);    // DC still checks if the value changed, but also if the iteration at which the value was found has changed
+            // }
+            //
+            // static bool isCauseUnderDCAsStruct(CalculatedValues ogValues, Dictionary<string, int> investigation, List<thisVar> vars, Dictionary<string, int> exoValues, List<string> endoVarNames, string modelString)
+            // {
+            //     bool timeStepChanged = false;
+            //
+            //     var underInvestigationPhiName = investigation.ElementAt(1).Key;
+            //     var foundAtIter = ogValues.foundAtIter;
+            //
+            //     var foundAtIterWithPhiName = foundAtIter.TryGetValue(underInvestigationPhiName, out int originalIterPhiValue);
+            //     
+            //     
+            //     
+            //     bool isCause =  isCauseUndercNess(ogValues.known, investigation, vars, exoValues, endoVarNames, modelString) && !timeStepChanged;    // DC still checks if the value changed, but also if the iteration at which the value was found has changed
+            //
+            //     
+            //     
+            //     return isCause;
+            // }
+            
+            // static bool isCauseUnderHPm(Dictionary<string, int> ogValues, Dictionary<string, int> investigation, List<thisVar> vars, Dictionary<string, int> exoValues, List<string> endoVarNames, string modelString)
+            // {
+            //     bool isCause = false;
+            //
+            //
+            //
+            //     return isCause;
+            // }
             static bool originalCheck(Dictionary<string, int>ogValues, Dictionary<string, int>investigation)
             {
                 foreach (KeyValuePair<string, int> kvp in ogValues)
@@ -259,6 +342,101 @@
 
                 return known;
             }
+               // ST:=1ifUST=1;ST:=0ifUST=0   ;;BT:= 1 if UBT = 1; BT:= 0 if UBT = 0;; SH:= 1 if ST = 1; SH:= 0 if ST = 0;;BH:= 1 if BT = 1,SH = 0; BH:= 0 if BT = 0,SH = 0; or; BT = 0,SH = 1; or; BT = 1,SH = 1;;    BS:= 1 if SH = 1,BH = 1; or; SH = 1,BH = 0; or; SH = 0,BH = 1;  BS:= 0 if SH = 0,BH = 0; ;
+
+               static CalculatedValues calculateValuesAsStruct(Dictionary<string, int> known, List<string> unknown,
+                   List<thisVar> vars, string modelString, KeyValuePair<string, int> intervention)
+               {
+                   Dictionary<string, int>
+                       tempKnown =
+                           new Dictionary<string, int>(); // this one starts off empty, as we use it to save temporary values.
+                   Dictionary<string, int> foundAtIter = new Dictionary<string, int>();
+                   int iter = 0;
+                   if (intervention.Key != null)
+                   {
+                       Console.WriteLine("Reached this with an intervention!");
+                   }
+
+                   if (unknown.Count == 0)
+                   {
+                       Console.WriteLine("Empty unknown");
+                   }
+
+                   while
+                       (unknown.Count > 0 &&
+                        iter < 10) // we continue until there are no values unknown anymore, therefore we calculated all values
+                   {
+                       Console.WriteLine("\n----------This is iteration " + iter + ".-------");
+                       Console.WriteLine("This is in unknown:");
+                       foreach (string s in unknown)
+                       {
+                           Console.WriteLine(s + ", ");
+                       }
+
+                       Console.WriteLine();
+                       for (int i = 0; i < unknown.Count; i++) // for every variable in unknown
+                       {
+                           string targetVariable = unknown[i];
+                           int value = tryGetValue(unknown[i], known, vars,
+                               modelString); // we try to calculate the value in this iter
+                           if (value != int
+                                   .MinValue) // if it is not the default value of the tryGetValue function, meaning it got a value
+                           {
+                               tempKnown.Add(targetVariable, value);
+                               unknown.Remove(targetVariable);
+                               i--; // This is crucial since the delete() operator already moves every item one up the list
+                           }
+                       }
+
+                       foreach (KeyValuePair<string, int> pair in tempKnown) // intervene here!!
+                       {
+                           Console.WriteLine("Reached this---------------");
+                           Console.WriteLine("tempknown: " + pair.Key + ", " + pair.Value);
+                           if (intervention.Key == null)
+                           {
+                               Console.WriteLine("intervention empty");
+                           }
+                           else Console.WriteLine("Intervention " + intervention.Key + ", " + intervention.Value);
+
+                           if (pair.Key == intervention.Key)
+                           {
+                               Console.WriteLine("in if 1");
+                               Console.WriteLine("intervention key found. Time to intervene!");
+                               known.Add(pair.Key, intervention.Value);
+                               Console.WriteLine("Added to known: " + pair.Key + ", " + intervention.Value);
+                           }
+                           else
+                           {
+                               Console.WriteLine("in else 1");
+                               Console.WriteLine("pair is " + pair.Key + ", " + pair.Value);
+                               known.Add(pair.Key, pair.Value);
+                               Console.WriteLine("Added to known: " + pair.Key + ", " + pair.Value);
+                           }
+
+                           Console.WriteLine("Added to known: " + pair.Key + ", " + pair.Value);
+                           foundAtIter.Add(pair.Key, iter);
+                       }
+
+                       tempKnown.Clear();
+                       iter++;
+                   }
+
+                   Console.WriteLine();
+                   if (intervention.Key == null)
+                   {
+                       Console.WriteLine("The following variables are found at these iterations: ");
+                       foreach (KeyValuePair<string, int> kvp in foundAtIter)
+                       {
+                           Console.WriteLine(kvp.Key + ", " + kvp.Value);
+                       }
+                   }
+
+                   var values = new CalculatedValues();
+                   values.known = known;
+                   values.foundAtIter = foundAtIter;
+
+                   return values;
+               }
                // ST:=1ifUST=1;ST:=0ifUST=0   ;;BT:= 1 if UBT = 1; BT:= 0 if UBT = 0;; SH:= 1 if ST = 1; SH:= 0 if ST = 0;;BH:= 1 if BT = 1,SH = 0; BH:= 0 if BT = 0,SH = 0; or; BT = 0,SH = 1; or; BT = 1,SH = 1;;    BS:= 1 if SH = 1,BH = 1; or; SH = 1,BH = 0; or; SH = 0,BH = 1;  BS:= 0 if SH = 0,BH = 0; ;
 
             static int tryGetValue(string varName, Dictionary<string, int>known, List<thisVar>vars, string modelString)
