@@ -9,16 +9,17 @@ namespace Actual_Causality
                 3. Or-Gate
                 4. Example of multiple digit variables
                 5. Suzy-Billy rock throwing example
+                6. Prisoner's death
+                7. Poison
 
                 B:= 1 if A=1; B:=0 if A=0;;
                 B:= 1 if A=1; B:=0 if A=0; or; A=2; A=3;A=28;;
                 Z:=1 if X=1,Y=1;or; X=1,Y=0;or; X=0,Y=1; Z:=0 if X=0,Y=0;;
                 Z:=11ifX=1,Y=1;or;X=1,Y=0;;OZD:=9999or;X=0,Y=1;Z:=0ifX=0,Y=0;;
                 ST:= 1 if UST = 1; ST:= 0 if UST=0;;BT:= 1 if UBT = 1; BT:= 0 if UBT = 0;; SH:= 1 if ST = 1; SH:= 0 if ST = 0;;BH:= 1 if BT = 1,SH = 0; BH:= 0 if BT = 0,SH = 0; or; BT = 0,SH = 1; or; BT = 1,SH = 1;;BS:= 1 if SH = 1,BH = 1; or; SH = 1,BH = 0; or; SH = 0,BH = 1;  BS:= 0 if SH = 0,BH = 0; ;
+                D:=1ifA=1,B=1,C=1;or;A=1,B=1,C=0;or;A=0,B=0,C=1;or;A=0,B=1,C=1;or;A=1,B=0,C=1;D:=0 if A=1,B=0,C=0;or;A=0,B=0,C=0;;
+                S:=0ifP=1,A=0;;S=1ifP=0,A=0;or;P=1,A=1;or;P=0,A=1;;
 
-
-                // prisoner input string
-                D:=1ifA=1,B=1,C=1;or;A=1,B=1,C=0;or;A=0,B=0,C=1;or;A=0,B=1,C=1;or;A=1,B=0,C=1;;
          */
         struct thisVar
         {
@@ -65,7 +66,6 @@ namespace Actual_Causality
             string copyMS = modelString;
 
             var originalValuesAsStruct = calculateValuesAsStruct(copyEXV, copyENN, copyVars, copyMS, defaultIntervention);
-            var originalValues = originalValuesAsStruct.known;
 
             Console.WriteLine("\nNow which variable would you like to investigate as a possible cause?");
             string possibleCause = Console.ReadLine();
@@ -119,7 +119,7 @@ namespace Actual_Causality
                 foreach (int pValue in possibleCauseRange)
                 {
                     KeyValuePair<string, int> intervention = new KeyValuePair<string, int>(investigation.ElementAt(0).Key, pValue);
-
+                    Console.WriteLine("Intervention passed is " + investigation.ElementAt(0).Key + "=" + pValue);
                     var intervenedValuesAsStruct = calculateValuesAsStruct(exoValues, endoVarNames, vars, modelString, intervention);
                     var intervenedValues = intervenedValuesAsStruct.known;
                     var intervenedFoundAtIter = intervenedValuesAsStruct.foundAtIter;
@@ -140,7 +140,7 @@ namespace Actual_Causality
                     //Console.WriteLine(investigation.ElementAt(1).Value + " vs " + intervenedValues[investigation.ElementAt(1).Key]);
                     if (investigation.ElementAt(1).Value != intervenedValues[investigation.ElementAt(1).Key])   // alleged dependant: compare original value with new value
                     {
-                        Console.WriteLine("Value of phi changed by intervention!");
+                        Console.WriteLine("Value of phi changed by intervention.");
                         return true;                // if those are not the same, it means the value has changed. And since the only thing we changed was our possible cause, it is an actual cause.
                     }
                 }
@@ -149,6 +149,7 @@ namespace Actual_Causality
             {
                 Console.WriteLine("Entered values were not the case in the original model!");
                 Console.WriteLine("Therefore the we cannot say anything about causality. \n");
+                Environment.Exit(0);
             }
             return false;
         }
@@ -190,21 +191,22 @@ namespace Actual_Causality
         static CalculatedValues calculateValuesAsStruct(Dictionary<string, int> known, List<string> unknown,
             List<thisVar> vars, string modelString, KeyValuePair<string, int> intervention)
         {
+            foreach (KeyValuePair <string, int> x in known)     // if the intervention takes place on a variable known at the start, this should deal with that.
+            {
+                if(x.Key == intervention.Key)
+                {
+                    known[x.Key] = intervention.Value;
+                }
+            }
             Dictionary<string, int>
                 tempKnown =
                     new Dictionary<string, int>(); // this one starts off empty, as we use it to save temporary values.
             Dictionary<string, int> foundAtIter = new Dictionary<string, int>();
             int iter = 0;
-            if (intervention.Key != null)
-            {
-                Console.WriteLine("Reached this with an intervention!");
-            }
-
             if (unknown.Count == 0)
             {
                 Console.WriteLine("Empty unknown");
             }
-
             while
                 (unknown.Count > 0 &&
                  iter < 10) // we continue until there are no values unknown anymore, therefore we calculated all values
@@ -224,6 +226,7 @@ namespace Actual_Causality
                             .MinValue) // if it is not the default value of the tryGetValue function, meaning it got a value
                     {
                         tempKnown.Add(targetVariable, value);
+                        //Console.WriteLine(targetVariable + " = " + value+" added to tempknown");
                         unknown.Remove(targetVariable);
                         i--; // This is crucial since the delete() operator already moves every item one up the list
                     }
