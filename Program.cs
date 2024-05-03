@@ -11,6 +11,9 @@ namespace Actual_Causality
                 5. Suzy-Billy rock throwing example
                 6. Prisoner's death
                 7. Poison
+                8. Blowing up the target 1
+                9. Blowing up the target 2
+                10. Blowing up the target 3
 
                 B:= 1 if A=1; B:=0 if A=0;;
                 B:= 1 if A=1; B:=0 if A=0; or; A=2; A=3;A=28;;
@@ -18,7 +21,9 @@ namespace Actual_Causality
                 Z:=11ifX=1,Y=1;or;X=1,Y=0;;OZD:=9999or;X=0,Y=1;Z:=0ifX=0,Y=0;;
                 ST:= 1 if UST = 1; ST:= 0 if UST=0;;BT:= 1 if UBT = 1; BT:= 0 if UBT = 0;; SH:= 1 if ST = 1; SH:= 0 if ST = 0;;BH:= 1 if BT = 1,SH = 0; BH:= 0 if BT = 0,SH = 0; or; BT = 0,SH = 1; or; BT = 1,SH = 1;;BS:= 1 if SH = 1,BH = 1; or; SH = 1,BH = 0; or; SH = 0,BH = 1;  BS:= 0 if SH = 0,BH = 0; ;
                 D:=1ifA=1,B=1,C=1;or;A=1,B=1,C=0;or;A=0,B=0,C=1;or;A=0,B=1,C=1;or;A=1,B=0,C=1;D:=0 if A=1,B=0,C=0;or;A=0,B=0,C=0;;
-                S:=0ifP=1,A=0;;S=1ifP=0,A=0;or;P=1,A=1;or;P=0,A=1;;
+                S:=0ifP=1,A=0;;S:=1ifP=0,A=0;or;P=1,A=1;or;P=0,A=1;;
+                EE:=0ifBPT=1;;EE:=1ifBPT=0;;EES:=1ifEE=1;;EES:=0ifEE=0;;SBT:=1ifEES=0;;SBT:=0ifEES=1;;TD:=1ifSBT=1;;TD:=0ifSBT=0;;
+                EE:=0ifBPT=1;;EE:=1ifBPT=0;;HPT:=1ifEE=1;;HPT:=0ifEE=0;;EES:=1ifEE=1,HPT=0;;EES:=0ifEE=0,HPT=1;or;EE=0,HPT=0;or;EE=0,HPT=0;;SBT:=1ifEES=0;;SBT:=0ifEES=1;;TD:=1ifSBT=1;;TD:=0ifSBT=0;;
 
          */
         struct thisVar
@@ -289,7 +294,7 @@ namespace Actual_Causality
                         {
                             if (d == kvp.Key)               // if the names are the same, it means the variable is both known and in the domain
                             {
-                                //Console.WriteLine("Intersection between domain of " + v.name + " and known list found, namely: " + d);
+                                Console.WriteLine("Intersection between domain of " + v.name + " and known list found, namely: " + d);
                                 newKnown.Add(kvp.Key + "=" + kvp.Value);
                             }
                         }
@@ -306,7 +311,7 @@ namespace Actual_Causality
             for (int i = 0; i < split.Length - 1; i++)
             {
                 string chunk = split[i];
-                //Console.WriteLine("Chunk is: " + chunk);
+                Console.WriteLine("Chunk is: " + chunk);
                 if (chunk == "or")                  // way to get past the 'or' statements
                 {
                     continue;
@@ -314,12 +319,16 @@ namespace Actual_Causality
                 if (chunk.Contains(target))         // get target value
                 {
                     targetValue = getValue(chunk, target);
-                    //Console.WriteLine("Targetvalue currently is: " + targetValue);
+                    Console.WriteLine("Targetvalue currently is: " + targetValue);
+                }
+                foreach (string s in newKnown)
+                {
+                    Console.WriteLine(s + " in newknown.");
                 }
                 if (newKnown.All(chunk.Contains) && targetValue != int.MinValue)      // check for containment and that the targetvalue is not reset to the default
                 {
                     values.Add(targetValue);                // add the most recent encountered target value
-                    //Console.WriteLine("Targetvalue added! --> " + targetValue);
+                    Console.WriteLine("Targetvalue added! --> " + targetValue);
                 }
             }
             if (values.Count == 1)
