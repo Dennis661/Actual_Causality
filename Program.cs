@@ -75,7 +75,7 @@ namespace Actual_Causality
             string allegedDependant = Console.ReadLine();
             Console.WriteLine("What corresponding value does " + allegedDependant + " have?");
             int adValue = int.Parse(Console.ReadLine());
-            Console.WriteLine("And for which definition would you like to have your answer? Write 1 for cNess, 2 for DC and 3 for HPm.");
+            Console.WriteLine("And for which definition would you like to have your answer? Write 1 for counterfactualness and 2 for Dynamic Causality.");
             int chosenMethod = int.Parse(Console.ReadLine());
             Console.WriteLine();
 
@@ -85,8 +85,6 @@ namespace Actual_Causality
             Dictionary<string, int> investigation = new Dictionary<string, int>();
             investigation.Add(pc.Key, pbValue);
             investigation.Add(ad.Key, adValue);
-
-            Console.WriteLine("Chosen method is: " + chosenMethod);
 
             var causal = isCause(originalValuesAsStruct, investigation, vars, exoValues, endoVarNames, modelString,
                 chosenMethod);
@@ -110,10 +108,11 @@ namespace Actual_Causality
 
             if (originalCheck(ogValues.known, investigation))     // first, we check if the values given were true in the original model
             {                                               // we now go look if any assignment of the possible cause variable might have changed the value of the alleged dependant
-                foreach (thisVar v in vars)
+                /*foreach (thisVar v in vars)
                 {
                     Console.WriteLine(v.name);
                 }
+                */
                 List<int> possibleCauseRange = getRange(investigation.ElementAt(0).Key, vars);
                 possibleCauseRange.Distinct();
                 possibleCauseRange.Remove(investigation.ElementAt(0).Value);
@@ -130,15 +129,18 @@ namespace Actual_Causality
                         var hasValue = intervenedFoundAtIter.TryGetValue(key, out int iterOfPhiAfterIntervention);
                         if (hasValue)
                         {
-                            Console.WriteLine("Phi found at a different iteration!");
-                            if (iterOfPhiOG != iterOfPhiAfterIntervention) return true;         // if the iteration in which phi is found is different, DC states that the possible cause is indeed also a cause.
+                            if (iterOfPhiOG != iterOfPhiAfterIntervention)
+                            {
+                                Console.WriteLine("Phi found at a different iteration!");
+                                return true;         // if the iteration in which phi is found is different, DC states that the possible cause is indeed also a cause.
+                            }
                         }
                     }
 
                     //Console.WriteLine(investigation.ElementAt(1).Value + " vs " + intervenedValues[investigation.ElementAt(1).Key]);
                     if (investigation.ElementAt(1).Value != intervenedValues[investigation.ElementAt(1).Key])   // alleged dependant: compare original value with new value
                     {
-                        Console.WriteLine("Computational step changed!");
+                        Console.WriteLine("Value of phi changed by intervention!");
                         return true;                // if those are not the same, it means the value has changed. And since the only thing we changed was our possible cause, it is an actual cause.
                     }
                 }
