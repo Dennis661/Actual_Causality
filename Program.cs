@@ -294,7 +294,7 @@ namespace Actual_Causality
                         {
                             if (d == kvp.Key)               // if the names are the same, it means the variable is both known and in the domain
                             {
-                                Console.WriteLine("Intersection between domain of " + v.name + " and known list found, namely: " + d);
+                                //Console.WriteLine("Intersection between domain of " + v.name + " and known list found, namely: " + d);
                                 newKnown.Add(kvp.Key + "=" + kvp.Value);
                             }
                         }
@@ -311,7 +311,7 @@ namespace Actual_Causality
             for (int i = 0; i < split.Length - 1; i++)
             {
                 string chunk = split[i];
-                Console.WriteLine("Chunk is: " + chunk);
+                //Console.WriteLine("Chunk is: " + chunk);
                 if (chunk == "or")                  // way to get past the 'or' statements
                 {
                     continue;
@@ -319,16 +319,16 @@ namespace Actual_Causality
                 if (chunk.Contains(target))         // get target value
                 {
                     targetValue = getValue(chunk, target);
-                    Console.WriteLine("Targetvalue currently is: " + targetValue);
+                    //Console.WriteLine("Targetvalue currently is: " + targetValue);
                 }
                 foreach (string s in newKnown)
                 {
-                    Console.WriteLine(s + " in newknown.");
+                    //Console.WriteLine(s + " in newknown.");
                 }
                 if (newKnown.All(chunk.Contains) && targetValue != int.MinValue)      // check for containment and that the targetvalue is not reset to the default
                 {
                     values.Add(targetValue);                // add the most recent encountered target value
-                    Console.WriteLine("Targetvalue added! --> " + targetValue);
+                    //Console.WriteLine("Targetvalue added! --> " + targetValue);
                 }
             }
             if (values.Count == 1)
